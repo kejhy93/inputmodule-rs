@@ -8,6 +8,11 @@
 # [...]
 
 import math
+
+import serial
+
+from pynput.keyboard import Key, Listener
+
 from dataclasses import dataclass
 
 WIDTH = 9
@@ -149,6 +154,55 @@ def print_led(leds, x, y):
     (register, page) = led.led_register()
     print(led, "(0x{:02x}, {})".format(register, page))
 
+def send_command(command_id, parameters, with_response=False):
+  with serial.Serial("/dev/ttyACM0", 115200) as s:
+      s.write([0x32, 0xAC, command_id] + parameters)
+
+      if with_response:
+          res = s.read(32)
+          return res
 
 if __name__ == "__main__":
     main()
+
+
+    send_command(0x03, [True])
+    res = send_command(0x03, [], with_response=True)
+    print(f"Is currently sleeping: {bool(res[0])}")
+
+    
+    print("Start snake")
+    res = send_command(0x10, [0])
+    print("Press arrow keys. Press 'esc' to quit.")
+
+
+def on_press(key):
+    print(f"Pressed key: {key}")
+    try:
+        if ( key.char.lower() == 'w'):
+            send_command(0x11, [0])
+        elif (  key.char.lower() == 's'):
+            send_command(0x11, [1])
+        elif ( key.char.lower() == 'a'):
+            send_command(0x11, [2])
+        elif ( key.char.lower() == 'd'):
+            send_command(0x11, [3])
+    except AttributeError:
+        if ( key == Key.up) :
+            send_command(0x11, [0])
+        elif (key == Key.down) :
+            send_command(0x11, [1])
+        elif ( key == Key.left) :
+            send_command(0x11, [2])
+        elif (key == Key.right) :
+            send_command(0x11, [3])
+        pass
+
+def on_release(key):
+    if key == Key.esc:
+        print("Exiting...")
+        return False  # Stop the listener
+
+# Start listening for key presses
+with Listener(on_press=on_press, on_release=on_release) as listener:
+    listener.join()
